@@ -1,0 +1,42 @@
+site_name: djoutbox
+site_description: Transactional outbox pattern for Django + PostgreSQL + RabbitMQ
+site_url: https://kbairak.net/djoutbox/
+repo_url: https://github.com/kbairak/djoutbox
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Publishing: publishing.md
+  - Message Relay: relay.md
+  - Worker: worker.md
+  - Observability: observability.md
+  - Django Admin: admin.md
+  - Advanced: advanced.md
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
