@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>djoutbox example</title>
+</head>
+<body>
+  <h1>djoutbox example</h1>
+
+  <form id="form">
+    <p>
+      <label>Message:<br>
+        <input type="text" id="message" value="hello world" />
+      </label>
+    </p>
+    <p>
+      <label>Exception count (0 = success immediately):<br>
+        <input type="number" id="exception_count" value="0" min="0" max="10" />
+      </label>
+    </p>
+    <p>
+      <label>Routing key:<br>
+        <select id="routing_key">
+          <option value="one">one</option>
+          <option value="two" selected>two</option>
+          <option value="three">three</option>
+        </select>
+      </label>
+    </p>
+    <p>
+      <label>Second message (optional, published by worker after success):<br>
+        <input type="text" id="second_message" />
+      </label>
+    </p>
+    <p>
+      <label>Second message routing key:<br>
+        <select id="second_message_routing_key">
+          <option value="one">one</option>
+          <option value="two" selected>two</option>
+          <option value="three">three</option>
+        </select>
+      </label>
+    </p>
+    <button type="submit">Send</button>
+  </form>
+
+  <pre id="result"></pre>
+
+  <script>
+    document.getElementById("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const data = {
+        message: document.getElementById("message").value,
+        exception_count: parseInt(document.getElementById("exception_count").value) || 0,
+        routing_key: document.getElementById("routing_key").value,
+        second_message: document.getElementById("second_message").value,
+        second_message_routing_key: document.getElementById("second_message_routing_key").value,
+      };
+      const resp = await fetch("/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const result = await resp.json();
+      document.getElementById("result").textContent =
+        JSON.stringify(result, null, 2);
+    });
+  </script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-from django.db import migrations
+from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
@@ -7,6 +7,39 @@ class Migration(migrations.Migration):
     dependencies = []
 
     operations = [
+        migrations.CreateModel(
+            name="PendingMessage",
+            fields=[
+                ("id", models.BigAutoField(primary_key=True, serialize=False)),
+                ("routing_key", models.TextField()),
+                ("body", models.BinaryField()),
+                ("tracking_ids", models.JSONField()),
+                ("created_at", models.DateTimeField()),
+                ("send_after", models.DateTimeField()),
+                ("expiration", models.DurationField(null=True)),
+            ],
+            options={
+                "db_table": "djoutbox_pending",
+                "managed": False,
+            },
+        ),
+        migrations.CreateModel(
+            name="SentMessage",
+            fields=[
+                ("id", models.BigIntegerField(primary_key=True, serialize=False)),
+                ("routing_key", models.TextField()),
+                ("body", models.BinaryField()),
+                ("tracking_ids", models.JSONField()),
+                ("created_at", models.DateTimeField()),
+                ("send_after", models.DateTimeField()),
+                ("expiration", models.DurationField(null=True)),
+                ("sent_at", models.DateTimeField()),
+            ],
+            options={
+                "db_table": "djoutbox_sent",
+                "managed": False,
+            },
+        ),
         migrations.RunSQL(
             sql="""
 CREATE TABLE djoutbox_pending (

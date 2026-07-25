@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import logging
 import signal
 import time
 from collections.abc import Callable, Coroutine, Sequence
@@ -139,8 +140,9 @@ class Consumer:
             tracking_ids_contextvar.reset(token)
             return
         else:
-            logger.debug(
-                f"Processing message {routing_key=}, {tracking_ids=}, body={truncate_body(body)}"
+            logger.info(
+                "Received — queue=%s, routing_key=%s, delivery_tag=%s, tracking_ids=%s",
+                self.queue, routing_key, message.delivery_tag, tracking_ids,
             )
 
         kwargs: dict[str, Any] = {body_param_key: body}
@@ -159,8 +161,9 @@ class Consumer:
             await self.callback(**kwargs)
         except Reject:
             logger.warning(
-                f"Rejecting, this message will end up in DLQ {routing_key=}, "
-                f"{tracking_ids=}, body={truncate_body(body)}"
+                f"Rejecting, this message will end up in DLQ "
+                f"{routing_key=}, {tracking_ids=}, delivery_tag={message.delivery_tag}, "
+                f"body={truncate_body(body)}"
             )
             await message.nack(requeue=False)
             metrics.messages_processed.labels(
@@ -169,7 +172,8 @@ class Consumer:
         except Exception as exc:
             logger.warning(
                 f"Handler failed with {type(exc).__name__}: {exc}, retrying "
-                f"{routing_key=}, {tracking_ids=}, body={truncate_body(body)}, "
+                f"{routing_key=}, {tracking_ids=}, delivery_tag={message.delivery_tag}, "
+                f"body={truncate_body(body)}, "
                 f"attempt={attempt_count}/{len(retry_delays)}",
                 exc_info=True,
             )
@@ -178,7 +182,11 @@ class Consumer:
                 queue=self.queue, exchange_name=self._exchange_name, status="failed"
             ).inc()
         else:
-            logger.debug(f"Successfully processed {routing_key=}, {tracking_ids=}")
+            logger.info(
+                "Successfully processed — queue=%s, routing_key=%s, "
+                "delivery_tag=%s, tracking_ids=%s",
+                self.queue, routing_key, message.delivery_tag, tracking_ids,
+            )
             await message.ack()
             metrics.messages_processed.labels(
                 queue=self.queue, exchange_name=self._exchange_name, status="success"
@@ -286,6 +294,9 @@ class Worker:
             raise ValueError("You cannot set both rmq_connection and rmq_url")
 
     async def run(self) -> None:
+        logging.basicConfig(level=logging.INFO)
+        logger.setLevel(logging.INFO)
+
         if self.rmq_connection is None and self.rmq_url is not None:
             self.rmq_connection = await get_rmq_connection(self.rmq_url)
         if self.rmq_connection is None:

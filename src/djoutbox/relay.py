@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import datetime
 import json
+import logging
 import signal
 import time
 from typing import cast
@@ -51,6 +52,9 @@ class Relay:
             logger.debug("Relay ignoring unknown setting: %s", key)
 
     async def run(self) -> None:
+        logging.basicConfig(level=logging.INFO)
+        logger.setLevel(logging.INFO)
+
         self._pool = await asyncpg.create_pool(self.db_dsn, min_size=1, max_size=4)
         self._rmq_connection = await get_rmq_connection(self.rmq_url)
         channel = await self._rmq_connection.channel()
@@ -60,6 +64,12 @@ class Relay:
 
         async with self._pool.acquire() as listen_conn:
             await ensure_partitions(listen_conn, self.sent_archive_granularity)
+
+            logger.info(
+                "Relay started — exchange=%s, batch_size=%s, notification_timeout=%ss",
+                self.exchange_name, self.batch_size, self.notification_timeout,
+            )
+
             notification_event = asyncio.Event()
             await listen_conn.add_listener("djoutbox_channel", lambda *_: notification_event.set())
 
