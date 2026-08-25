@@ -31,7 +31,7 @@ class Relay:
         batch_size: int = 50,
         notification_timeout: float = 60.0,
         expiration: DateType | None = None,
-        sent_archive_enabled: bool = True,
+        sent_archive_enabled: bool = False,
         sent_archive_granularity: str = "1d",
         partition_admin_interval: float = 300.0,
         **_ignored: object,

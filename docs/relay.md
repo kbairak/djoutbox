@@ -77,7 +77,7 @@ class Relay:
         batch_size: int = 50,
         notification_timeout: float = 60.0,
         expiration: DateType | None = None,
-        sent_archive_enabled: bool = True,
+        sent_archive_enabled: bool = False,
         sent_archive_granularity: str = "1d",
         partition_admin_interval: float = 300.0,
     ) -> None
@@ -93,7 +93,7 @@ class Relay:
 | `batch_size` | `50` | Messages to fetch per batch. Higher = more throughput, more memory |
 | `notification_timeout` | `60.0` | Max seconds to wait for PG NOTIFY before checking for scheduled messages |
 | `expiration` | `None` | Default message TTL in RabbitMQ. Overridden by per-message `expiration` |
-| `sent_archive_enabled` | `True` | Move sent messages to `djoutbox_sent` partition (instead of deleting) |
+| `sent_archive_enabled` | `False` | Move sent messages to `djoutbox_sent` partition (instead of deleting) |
 | `sent_archive_granularity` | `"1d"` | Partition granularity: `"Nd"` or `"Nm"` |
 | `partition_admin_interval` | `300.0` | Seconds between partition admin checks |
 
@@ -148,7 +148,7 @@ The relay automatically creates range partitions for `djoutbox_sent`:
 ```python
 DJOUTBOX = {
     "sent_archive": {
-        "enabled": True,
+        "enabled": False,
         "granularity": "1d",  # or "3d", "7d", "1m", "3m"
     }
 }

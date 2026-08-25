@@ -54,7 +54,7 @@ DJOUTBOX = {
     "expiration": None,
     "db_alias": "default",
     "sent_archive": {
-        "enabled": True,
+        "enabled": False,
         "granularity": "1d",
     },
 }
@@ -88,7 +88,7 @@ This creates:
 | `notification_timeout` | `60.0` | Max seconds to wait for PG NOTIFY before checking for scheduled messages |
 | `expiration` | `None` | Default message expiration in RabbitMQ (relay-level) |
 | `db_alias` | `"default"` | Which `DATABASES` entry to use for the relay |
-| `sent_archive.enabled` | `True` | Whether to move sent messages to `djoutbox_sent` (false = delete) |
+| `sent_archive.enabled` | `False` | Whether to move sent messages to `djoutbox_sent` (false = delete) |
 | `sent_archive.granularity` | `"1d"` | Partition granularity: `"Nd"` (N days) or `"Nm"` (N months) |
 
 ### Validation

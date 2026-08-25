@@ -28,7 +28,7 @@ async def test_consume_batch(
     db_connection: asyncpg.Connection,
     rmq_connection: aio_pika.abc.AbstractConnection,
 ):
-    relay = Relay(db_dsn="", rmq_url="", batch_size=10)
+    relay = Relay(db_dsn="", rmq_url="", batch_size=10, sent_archive_enabled=True)
 
     channel = await rmq_connection.channel()
     exchange = await channel.declare_exchange(
@@ -69,7 +69,7 @@ async def test_consume_batch_batch_limit(
     db_connection: asyncpg.Connection,
     rmq_connection: aio_pika.abc.AbstractConnection,
 ):
-    relay = Relay(db_dsn="", rmq_url="", batch_size=2)
+    relay = Relay(db_dsn="", rmq_url="", batch_size=2, sent_archive_enabled=True)
 
     channel = await rmq_connection.channel()
     exchange = await channel.declare_exchange(
@@ -106,7 +106,7 @@ async def test_drain_batches(
     from django.conf import settings as dj_settings
     db = dj_settings.DATABASES["default"]
     url = f"postgresql://{db['USER']}:{db['PASSWORD']}@{db['HOST']}:{db['PORT']}/{db['NAME']}"
-    relay = Relay(db_dsn="", rmq_url="", batch_size=2)
+    relay = Relay(db_dsn="", rmq_url="", batch_size=2, sent_archive_enabled=True)
     relay._pool = await asyncpg.create_pool(url)
 
     channel = await rmq_connection.channel()

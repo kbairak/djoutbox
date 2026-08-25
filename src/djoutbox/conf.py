@@ -18,7 +18,7 @@ DEFAULTS: dict[str, Any] = {
     "expiration": None,
     "db_alias": "default",
     "sent_archive": {
-        "enabled": True,
+        "enabled": False,
         "granularity": "1d",
     },
 }
