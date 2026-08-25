@@ -126,6 +126,7 @@ class Worker:
         exchange_name: str = "outbox",
         default_retry_delays: Sequence[str] = ("1s", "10s", "1m", "5m"),
         prefetch_count: int = 10,
+        serializers: Sequence | None = None,
     ) -> None
 ```
 
@@ -137,6 +138,7 @@ class Worker:
 | `exchange_name`        | `"outbox"`                  | Topic exchange name                                     |
 | `default_retry_delays` | `("1s", "10s", "1m", "5m")` | Default retry delays for all consumers                  |
 | `prefetch_count`       | `10`                        | RabbitMQ prefetch count                                 |
+| `serializers`          | `None`                      | Sequence of (type, serializer, deserializer) tuples for custom deserialization |
 
 ### Methods
 
@@ -195,13 +197,13 @@ You must have exactly **one** parameter that isn't one of the reserved names (`r
 
 The body type hint determines deserialization:
 
-| Type hint                     | Deserialization         |
-| ----------------------------- | ----------------------- |
-| Pydantic `BaseModel` subclass | `model_validate_json()` |
-| `bytes`                       | Raw body                |
-| `dict` / no hint / other      | `json.loads()`          |
+| Type hint                                          | Deserialization                                  |
+| -------------------------------------------------- | ------------------------------------------------ |
+| Match in `Worker.serializers` (issubclass check)   | Custom deserializer called as `deserializer(type, body)` |
+| `bytes`                                            | Raw body                                         |
+| `dict` / no hint / other                           | `json.loads()`                                   |
 
-Pydantic is optional. Without it installed, plain `json.loads()` is used for all non-bytes types.
+Custom types are configured on the `Worker` via the `serializers` kwarg. See installation.md "Custom serializers" for a Pydantic example.
 
 ## Retries and dead-lettering
 

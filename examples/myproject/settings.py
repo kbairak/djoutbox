@@ -34,8 +34,17 @@ DATABASES = {
     }
 }
 
+from pydantic import BaseModel
+
 DJOUTBOX = {
     "rmq_url": "amqp://guest:guest@localhost/",
+    "serializers": [
+        (
+            BaseModel,
+            lambda m: m.model_dump_json().encode(),
+            lambda cls, d: cls.model_validate_json(d),
+        ),
+    ],
 }
 
 USE_TZ = True

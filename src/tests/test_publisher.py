@@ -9,8 +9,6 @@ from djoutbox.models import PendingMessage
 from djoutbox.publisher import OutboxMessage, bulk_publish, publish
 from djoutbox.utils import tracking
 
-from .utils import Person
-
 
 @pytest.mark.django_db
 def test_publish():
@@ -57,7 +55,24 @@ def test_serialize_bytes():
 
 @pytest.mark.django_db
 def test_serialize_pydantic():
-    bulk_publish([OutboxMessage("k", Person(name="Alice"))])
+    from django.conf import settings
+    from pydantic import BaseModel
+
+    class Person(BaseModel):
+        name: str
+
+    serializers = [
+        (
+            BaseModel,
+            lambda m: m.model_dump_json().encode(),
+            lambda cls, d: cls.model_validate_json(d),
+        )
+    ]
+    settings.DJOUTBOX = {**settings.DJOUTBOX, "serializers": serializers}
+    try:
+        bulk_publish([OutboxMessage("k", Person(name="Alice"))])
+    finally:
+        settings.DJOUTBOX = {k: v for k, v in settings.DJOUTBOX.items() if k != "serializers"}
 
     msg = PendingMessage.objects.first()
     assert msg is not None

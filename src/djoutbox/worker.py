@@ -8,7 +8,7 @@ import signal
 import time
 from collections.abc import Callable, Coroutine, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, cast, get_type_hints
+from typing import Any, cast, get_type_hints
 
 import aio_pika
 from aio_pika.abc import (
@@ -29,12 +29,6 @@ from djoutbox.utils import (
     truncate_body,
 )
 
-try:
-    from pydantic import BaseModel
-except ImportError:
-    if not TYPE_CHECKING:
-        BaseModel = type(None)
-
 
 @dataclass
 class Consumer:
@@ -46,6 +40,7 @@ class Consumer:
     _consumer_tag: ConsumerTag | None = None
     _delay_exchanges: dict[str, AbstractExchange] = field(default_factory=dict)
     _exchange_name: str | None = None
+    _worker_serializers: Sequence[Any] | None = None
 
     queue: str = field(init=False)
 
@@ -119,12 +114,15 @@ class Consumer:
         assert routing_key is not None
         body: Any = message.body
         try:
-            if inspect.isclass(body_type) and issubclass(body_type, BaseModel):
-                body = body_type.model_validate_json(message.body)
-            elif inspect.isclass(body_type) and issubclass(body_type, bytes):
-                body = message.body
+            for type_, _, deserializer in self._worker_serializers or ():
+                if inspect.isclass(body_type) and issubclass(body_type, type_):
+                    body = deserializer(body_type, message.body)
+                    break
             else:
-                body = json.loads(message.body)
+                if inspect.isclass(body_type) and issubclass(body_type, bytes):
+                    body = message.body
+                else:
+                    body = json.loads(message.body)
         except Exception as exc:
             logger.error(
                 f"Failed to deserialize message body {routing_key=}, {tracking_ids=}, "
@@ -142,7 +140,10 @@ class Consumer:
         else:
             logger.info(
                 "Received — queue=%s, routing_key=%s, delivery_tag=%s, tracking_ids=%s",
-                self.queue, routing_key, message.delivery_tag, tracking_ids,
+                self.queue,
+                routing_key,
+                message.delivery_tag,
+                tracking_ids,
             )
 
         kwargs: dict[str, Any] = {body_param_key: body}
@@ -185,7 +186,10 @@ class Consumer:
             logger.info(
                 "Successfully processed — queue=%s, routing_key=%s, "
                 "delivery_tag=%s, tracking_ids=%s",
-                self.queue, routing_key, message.delivery_tag, tracking_ids,
+                self.queue,
+                routing_key,
+                message.delivery_tag,
+                tracking_ids,
             )
             await message.ack()
             metrics.messages_processed.labels(
@@ -287,6 +291,7 @@ class Worker:
     exchange_name: str = "outbox"
     default_retry_delays: Sequence[str] = ("1s", "10s", "1m", "5m")
     prefetch_count: int = 10
+    serializers: Sequence[Any] | None = None
     _shutdown_future: asyncio.Future[None] | None = None
 
     def __post_init__(self) -> None:
@@ -427,6 +432,7 @@ class Worker:
                 consumer.retry_delays = self.default_retry_delays
             consumer._delay_exchanges = delay_exchanges
             consumer._exchange_name = self.exchange_name
+            consumer._worker_serializers = self.serializers
 
             dead_letter_queue_obj = await channel.declare_queue(
                 f"{consumer.queue}.dlq", durable=True, arguments={"x-queue-type": "quorum"}

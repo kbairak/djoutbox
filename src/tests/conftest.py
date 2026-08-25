@@ -70,6 +70,7 @@ def db_settings(
         NAME=postgres_container.dbname,
     )
     from django.core.management import call_command
+
     with django_db_blocker.unblock():
         call_command("migrate", "djoutbox", verbosity=0)
 
@@ -89,6 +90,7 @@ async def db_connection(db_settings) -> AsyncGenerator[asyncpg.Connection]:
     conn = await asyncpg.connect(url)
     try:
         from djoutbox.partitions import ensure_partitions
+
         await ensure_partitions(conn, "1d")
         yield conn
     finally:
@@ -98,6 +100,7 @@ async def db_connection(db_settings) -> AsyncGenerator[asyncpg.Connection]:
 @pytest_asyncio.fixture
 async def worker(rmq_connection: AbstractConnection):
     from djoutbox.worker import Worker as _Worker
+
     return _Worker(rmq_connection=rmq_connection)
 
 
@@ -106,6 +109,7 @@ async def rmq_connection(
     rabbitmq_container: RabbitMqContainer,
 ) -> AsyncGenerator[AbstractConnection]:
     import aio_pika
+
     host = rabbitmq_container.get_container_host_ip()
     port = rabbitmq_container.get_exposed_port(rabbitmq_container.port)
     user = rabbitmq_container.username

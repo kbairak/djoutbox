@@ -19,14 +19,6 @@ Or with uv:
 uv add djoutbox
 ```
 
-### Optional dependencies
-
-- **Pydantic** — automatic serialization/deserialization of Pydantic models:
-
-    ```bash
-    pip install djoutbox[pydantic]
-    ```
-
 ## Django setup
 
 ### 1. Add to `INSTALLED_APPS`
@@ -57,6 +49,7 @@ DJOUTBOX = {
         "enabled": False,
         "granularity": "1d",
     },
+    "serializers": (),  # see "Custom serializers" below
 }
 ```
 
@@ -90,6 +83,26 @@ This creates:
 | `db_alias` | `"default"` | Which `DATABASES` entry to use for the relay |
 | `sent_archive.enabled` | `False` | Whether to move sent messages to `djoutbox_sent` (false = delete) |
 | `sent_archive.granularity` | `"1d"` | Partition granularity: `"Nd"` (N days) or `"Nm"` (N months) |
+
+### Custom serializers
+
+`serializers` is a sequence of `(type, serializer, deserializer)` tuples consulted by both publisher and worker:
+
+```python
+from pydantic import BaseModel
+
+DJOUTBOX = {
+    ...,
+    "serializers": [
+        (BaseModel,
+         lambda m: m.model_dump_json().encode(),
+         lambda cls, d: cls.model_validate_json(d)),
+    ],
+}
+```
+
+- Publisher: first tuple whose `type` matches `isinstance(body, type)` is used; falls back to `bytes` passthrough, then `json.dumps`.
+- Worker: first tuple whose `type` matches `issubclass(body_type_hint, type)` is used; falls back to `bytes` passthrough, then `json.loads`.
 
 ### Validation
 

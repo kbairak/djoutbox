@@ -1,130 +1,86 @@
-# djoutbox — Design
+# Custom serializers/deserializers
 
-Transactional outbox pattern for Django, PostgreSQL, and RabbitMQ
+Replace hardcoded pydantic `BaseModel` special-case in publisher + worker with a pluggable type registry.
 
-## Overview
+## Registry
 
-1. uv/pip install djoutbox
+No module-level list. Publisher and worker read serializers from their own source at point of use.
 
-2. Add djoutbox to INSTALLED_APPS
+## Publisher
 
-3. Configure outbox in settings (partitioning, RMQ connection string, RMQ exchange name, expiration, etc)
+`_serialize_message` looks up serializers from Django settings each call:
 
-4. `./manage.py migrate`
+```python
+def _serialize_message(msg, now, tracking_ids):
+    from django.conf import settings
 
-5. In some view or whatever:
-
-   ```python
-   from djoutbox import publish
-
-   publish("routing_key", payload)  # also expiration and/or eta as kwargs
-   ```
-
-6. Write a worker file (no mgmt command, no auto-discovery)
-
-   ```python
-   import asyncio
-   from djoutbox import consume, Worker
-
-   @consume("binding_key")  # also queue_name and/or retry_delays as kwargs
-   async def work(payload):  # Also routing_key, message, tracking_ids, attempt_count, will be added by the framework if present in the signature
-      ...
-
-   from django.conf import settings
-   worker = Worker(consumers=[work, ...], **settings.DJOUTBOX)  # Or pass rmq_url, exchange_name, default_retry_delays, prefetch_count
-   asyncio.run(worker.run())
-   ```
-
-   - Worker is not django-specific, it could work on other machines entirely
-   - You can still put `worker.run` in the `handle` method of a management command; this way you have access to django stuff like settings and ORM
-
-7. Start one or more pods with `./manage.py djoutbox_relay`, connects to PG and RMQ based on django settings
-
-8. Start one or more pods that run one or more workers (with or without django)
-
-## Notes
-
-- 'publish' is sync because django transactions are sync; if user is writing async, they want to put publish in an async_to_sync block
-- 'publish' could be an alias or thin wrapper to `Outbox.objects.create`
-- if publish payload is pydantic model, it is `.model_dump_json`ed
-- if consumer payload has a pydantic model type hint, it is `.model_validate_json`ed
-- otherwise, it is `json.load`ed
-- otherwise, it is bytes
-- We want feature-parity with ../outbox
-  - tracking ids
-  - topic exchanges
-  - retry exchanges/queues
-  - dead-letter exchanges/queues
-  - prometheus metrics
-  - bulk-publish
-  - graceful worker shutdown
-- sync and async consumer functions
-- configure logging with getLogger('djoutbox')
-- relay wakes on PG LISTEN/NOTIFY (trigger on insert when send_after <= now()), timeout as backstop
-- pydantic support is optional (extra), package works without it installed
-
-## Partitioning
-
-Two tables: `djoutbox_pending` (regular) and `djoutbox_sent` (range-partitioned by `created_at`).
-
-### Relay flow
-
-```
-relay_loop():                               # hot path, no partition awareness
-    SELECT * FROM pending
-    WHERE created_at < now() - retry_delay
-    LIMIT batch_size
-
-    for each message:
-        publish to RMQ
-        CTE: DELETE FROM pending WHERE id = $1 RETURNING *;
-             INSERT INTO sent SELECT * FROM $1;
-
-partition_admin():                          # runs every 300s in same event loop
-    for partition in needed_partitions():
-        try:
-            CREATE TABLE YYYYMMDD_YYYYMMDD PARTITION OF sent
-            FOR VALUES FROM (start) TO (end)
-        except DuplicateTable:
-            pass
+    serializers = settings.DJOUTBOX.get("serializers", [])
+    for type_, serializer, _ in serializers:
+        if isinstance(msg.body, type_):
+            body_bytes = serializer(msg.body)
+            break
+    else:
+        if isinstance(msg.body, bytes):
+            body_bytes = msg.body
+        else:
+            body_bytes = json.dumps(msg.body).encode()
+    ...
 ```
 
-`needed_partitions()`:
+## Worker
 
-1. Query `pg_partitions` for max `upper_bound` of `sent_*` partitions
-2. If none → start from today
-3. Create partitions to cover up to at least the most recent `created_at` + 1 day
-4. Each partition starts where previous ended → seamless granularity switch
+Worker init accepts `serializers` kwarg. `Consumer._handle` uses it for deserialization:
 
-On relay startup, `partition_admin` runs immediately once, then every 300s.
+```python
+@dataclass
+class Worker:
+    ...
+    serializers: Sequence | None = None
+```
 
-### Granularity config
+`Consumer._handle(message)` checks worker's serializers:
+
+```python
+for type_, _, deserializer in (worker.serializers or []):
+    if inspect.isclass(body_type) and issubclass(body_type, type_):
+        body = deserializer(body_type, message.body)
+        break
+else:
+    if inspect.isclass(body_type) and issubclass(body_type, bytes):
+        body = message.body
+    else:
+        body = json.loads(message.body)
+```
+
+The management command passes `settings.DJOUTBOX["serializers"]` to Worker:
+
+```python
+class Command(BaseCommand):
+    def handle(self, *args, **options):
+        worker = Worker(
+            consumers=[...],
+            serializers=settings.DJOUTBOX.get("serializers", []),
+            **settings.DJOUTBOX,
+        )
+        asyncio.run(worker.run())
+```
+
+## Example: pydantic
 
 ```python
 DJOUTBOX = {
-    "SENT_ARCHIVE": {
-        "ENABLED": True,
-        "GRANULARITY": "1d",  # "Nd" (N days) or "Nm" (N months, captures full calendar months)
-    }
+    "serializers": [
+        (BaseModel, lambda m: m.model_dump_json().encode(), lambda cls, d: cls.model_validate_json(d)),
+    ]
 }
 ```
 
-Partition names: `YYYYMMDD_YYYYMMDD` (no granularity prefix).
+## Removing pydantic from optional deps
 
-Month granularity captures full calendar months. Example with `1m`:
+`pyproject.toml`: drop `[project.optional-dependencies] pydantic`. Move to dev deps only.
 
-- Existing partitions cover up to 20 Jan → next partition `20260120_20260131`
-- Next one `20260201_20260228`, then `20260301_20260331`, etc.
+## What does NOT change
 
-### Partition lifecycle
-
-- Migrations create `djoutbox_sent` as partitioned parent table, zero partitions
-- Partition creation is relay's job (auto-create on startup + every 300s)
-- Partition retention is **user's responsibility** (`DROP TABLE` via psql, metabase, cron, etc.)
-- No retention or lifecycle management inside djoutbox
-- No management commands for partitions
-
-### Admin panel
-
-- `djoutbox_pending` exposed normally in admin (small table, no concerns)
-- `djoutbox_sent` exposed in admin with a **partition dropdown filter** so queries hit only the relevant partition(s)
+- Plain dict/list/str/... still serialize via `json.dumps`/`json.loads`
+- No schema migration — `PendingMessage`/`SentMessage` unchanged
+- No `content_type` field — deserialization chosen by consumer's type annotation, not wire marker

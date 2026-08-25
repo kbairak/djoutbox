@@ -5,13 +5,8 @@ import contextlib
 from collections.abc import Sequence
 
 from aio_pika.abc import AbstractConnection
-from pydantic import BaseModel
 
 from djoutbox import Consumer, Worker
-
-
-class Person(BaseModel):
-    name: str
 
 
 async def run_worker(worker: Worker, consumers: Sequence[Consumer], timeout: float) -> None:

@@ -32,7 +32,9 @@ async def test_consume_batch(
 
     channel = await rmq_connection.channel()
     exchange = await channel.declare_exchange(
-        "outbox", aio_pika.ExchangeType.TOPIC, durable=True,
+        "outbox",
+        aio_pika.ExchangeType.TOPIC,
+        durable=True,
     )
     queue = await channel.declare_queue("", exclusive=True)
     await queue.bind(exchange, routing_key="test_key")
@@ -40,7 +42,11 @@ async def test_consume_batch(
     now = datetime.datetime.now(datetime.timezone.utc)
     await db_connection.execute(
         INSERT_PENDING,
-        "test_key", b'"test_body"', '[]', now, now,
+        "test_key",
+        b'"test_body"',
+        "[]",
+        now,
+        now,
     )
 
     async with db_connection.transaction():
@@ -73,14 +79,20 @@ async def test_consume_batch_batch_limit(
 
     channel = await rmq_connection.channel()
     exchange = await channel.declare_exchange(
-        "outbox", aio_pika.ExchangeType.TOPIC, durable=True,
+        "outbox",
+        aio_pika.ExchangeType.TOPIC,
+        durable=True,
     )
 
     now = datetime.datetime.now(datetime.timezone.utc)
     for i in range(3):
         await db_connection.execute(
             INSERT_PENDING,
-            f"key_{i}", f'"body_{i}"'.encode(), '[]', now, now,
+            f"key_{i}",
+            f'"body_{i}"'.encode(),
+            "[]",
+            now,
+            now,
         )
 
     async with db_connection.transaction():
@@ -104,6 +116,7 @@ async def test_drain_batches(
     db_settings,
 ):
     from django.conf import settings as dj_settings
+
     db = dj_settings.DATABASES["default"]
     url = f"postgresql://{db['USER']}:{db['PASSWORD']}@{db['HOST']}:{db['PORT']}/{db['NAME']}"
     relay = Relay(db_dsn="", rmq_url="", batch_size=2, sent_archive_enabled=True)
@@ -111,14 +124,20 @@ async def test_drain_batches(
 
     channel = await rmq_connection.channel()
     exchange = await channel.declare_exchange(
-        "outbox", aio_pika.ExchangeType.TOPIC, durable=True,
+        "outbox",
+        aio_pika.ExchangeType.TOPIC,
+        durable=True,
     )
 
     now = datetime.datetime.now(datetime.timezone.utc)
     for i in range(3):
         await db_connection.execute(
             INSERT_PENDING,
-            f"key_{i}", f'"body_{i}"'.encode(), '[]', now, now,
+            f"key_{i}",
+            f'"body_{i}"'.encode(),
+            "[]",
+            now,
+            now,
         )
 
     try:
@@ -142,7 +161,9 @@ async def test_consume_batch_empty(
 
     channel = await rmq_connection.channel()
     exchange = await channel.declare_exchange(
-        "outbox", aio_pika.ExchangeType.TOPIC, durable=True,
+        "outbox",
+        aio_pika.ExchangeType.TOPIC,
+        durable=True,
     )
 
     async with db_connection.transaction():
@@ -160,7 +181,9 @@ async def test_consume_batch_no_archive(
 
     channel = await rmq_connection.channel()
     exchange = await channel.declare_exchange(
-        "outbox", aio_pika.ExchangeType.TOPIC, durable=True,
+        "outbox",
+        aio_pika.ExchangeType.TOPIC,
+        durable=True,
     )
     queue = await channel.declare_queue("", exclusive=True)
     await queue.bind(exchange, routing_key="test_key")
@@ -168,7 +191,11 @@ async def test_consume_batch_no_archive(
     now = datetime.datetime.now(datetime.timezone.utc)
     await db_connection.execute(
         INSERT_PENDING,
-        "test_key", b'"test_body"', '[]', now, now,
+        "test_key",
+        b'"test_body"',
+        "[]",
+        now,
+        now,
     )
 
     async with db_connection.transaction():

@@ -5,7 +5,7 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from aio_pika.abc import DateType
 from aio_pika.message import encode_expiration
@@ -13,12 +13,6 @@ from django.utils import timezone
 
 from djoutbox.models import PendingMessage
 from djoutbox.utils import get_tracking_ids
-
-try:
-    from pydantic import BaseModel
-except ImportError:
-    if not TYPE_CHECKING:
-        BaseModel = type(None)
 
 
 @dataclass
@@ -29,16 +23,17 @@ class OutboxMessage:
     eta: DateType | None = None
 
 
-def _serialize_message(
-    msg: OutboxMessage, now, tracking_ids
-) -> PendingMessage:
+def _serialize_message(msg: OutboxMessage, now, tracking_ids) -> PendingMessage:
     try:
-        if isinstance(msg.body, BaseModel):
-            body_bytes = msg.body.model_dump_json().encode()
-        elif isinstance(msg.body, bytes):
-            body_bytes = msg.body
+        from django.conf import settings
+
+        serializers = getattr(settings, "DJOUTBOX", {}).get("serializers", ())
+        for type_, serializer, _ in serializers:
+            if isinstance(msg.body, type_):
+                body_bytes = serializer(msg.body)
+                break
         else:
-            body_bytes = json.dumps(msg.body).encode()
+            body_bytes = msg.body if isinstance(msg.body, bytes) else json.dumps(msg.body).encode()
     except (TypeError, ValueError) as exc:
         raise ValueError(
             f"Cannot serialize message body for routing_key={msg.routing_key!r}: "
@@ -49,18 +44,14 @@ def _serialize_message(
     if msg.expiration is not None:
         ms = encode_expiration(msg.expiration)
         if ms is None:
-            raise ValueError(
-                f"Invalid expiration for routing_key={msg.routing_key!r}"
-            )
+            raise ValueError(f"Invalid expiration for routing_key={msg.routing_key!r}")
         expiration_td = timedelta(milliseconds=int(ms))
 
     send_after = now
     if msg.eta is not None:
         ms = encode_expiration(msg.eta)
         if ms is None:
-            raise ValueError(
-                f"Invalid eta for routing_key={msg.routing_key!r}"
-            )
+            raise ValueError(f"Invalid eta for routing_key={msg.routing_key!r}")
         send_after = now + timedelta(milliseconds=int(ms))
 
     ids = list(tracking_ids + (str(uuid.uuid4()),))

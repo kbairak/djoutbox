@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import BaseModel
 
 from djoutbox import Consumer, Worker, consume
+
+
+class _Payload(BaseModel):
+    name: str
 
 
 @pytest.mark.asyncio
@@ -59,3 +64,70 @@ async def test_consumer_initially_no_retry_delays():
         pass
 
     assert handler.retry_delays is None
+
+
+@pytest.mark.asyncio
+async def test_consumer_deserializes_via_registry(worker: Worker):
+    received = []
+
+    @consume(binding_key="k", queue_name="test_registry_deser")
+    async def handler(payload: _Payload) -> None:
+        received.append(payload)
+
+    worker.serializers = [
+        (
+            BaseModel,
+            lambda m: m.model_dump_json().encode(),
+            lambda cls, d: cls.model_validate_json(d),
+        )
+    ]
+
+    class FakeMessage:
+        body = b'{"name": "Bob"}'
+        routing_key = "k"
+        delivery_tag = 1
+        headers = {}
+        content_type = "application/json"
+
+        async def ack(self):
+            pass
+
+        async def nack(self, requeue=False):
+            pass
+
+    consumer = handler
+    consumer._exchange_name = "outbox"
+    consumer._worker_serializers = worker.serializers
+    await consumer._handle(FakeMessage())
+
+    assert len(received) == 1
+    assert received[0].name == "Bob"
+
+
+@pytest.mark.asyncio
+async def test_consumer_bytes_passthrough(worker: Worker):
+    received = []
+
+    @consume(binding_key="k", queue_name="test_bytes_passthrough")
+    async def handler(payload: bytes) -> None:
+        received.append(payload)
+
+    class FakeMessage:
+        body = b"raw bytes"
+        routing_key = "k"
+        delivery_tag = 1
+        headers = {}
+        content_type = "application/octet-stream"
+
+        async def ack(self):
+            pass
+
+        async def nack(self, requeue=False):
+            pass
+
+    consumer = handler
+    consumer._exchange_name = "outbox"
+    consumer._worker_serializers = None
+    await consumer._handle(FakeMessage())
+
+    assert received == [b"raw bytes"]

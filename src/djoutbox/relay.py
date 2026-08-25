@@ -67,7 +67,9 @@ class Relay:
 
             logger.info(
                 "Relay started — exchange=%s, batch_size=%s, notification_timeout=%ss",
-                self.exchange_name, self.batch_size, self.notification_timeout,
+                self.exchange_name,
+                self.batch_size,
+                self.notification_timeout,
             )
 
             notification_event = asyncio.Event()
@@ -135,7 +137,9 @@ class Relay:
                         notification_event.clear()
             except Exception as exc:
                 logger.error(
-                    "Relay error: %s. Retrying in %ds...", exc, RETRY_DELAY_SECONDS,
+                    "Relay error: %s. Retrying in %ds...",
+                    exc,
+                    RETRY_DELAY_SECONDS,
                     exc_info=True,
                 )
                 await asyncio.sleep(RETRY_DELAY_SECONDS)
@@ -200,7 +204,10 @@ FOR UPDATE SKIP LOCKED""",
                 ).inc()
                 logger.error(
                     "Failed to publish message id=%s routing_key=%s: %s: %s",
-                    row["id"], row["routing_key"], error_type, result,
+                    row["id"],
+                    row["routing_key"],
+                    error_type,
+                    result,
                 )
             else:
                 successful_ids.append(row["id"])

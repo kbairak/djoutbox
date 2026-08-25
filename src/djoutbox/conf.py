@@ -21,6 +21,7 @@ DEFAULTS: dict[str, Any] = {
         "enabled": False,
         "granularity": "1d",
     },
+    "serializers": (),
 }
 
 DURATION_RE = re.compile(r"^([^0]\d*d)?([^0]\d*h)?([^0]\d*m)?([^0]\d*s)?([^0]\d*ms)?$")
@@ -107,9 +108,7 @@ def build_dsn(db_alias: str | None = None) -> str:
     db = settings.DATABASES[alias]
     engine = db["ENGINE"]
     if "postgresql" not in engine:
-        raise ImproperlyConfigured(
-            f"djoutbox requires a PostgreSQL database, got {engine}"
-        )
+        raise ImproperlyConfigured(f"djoutbox requires a PostgreSQL database, got {engine}")
     user = quote(db.get("USER", "") or "")
     password = quote(db.get("PASSWORD", "") or "")
     host = db.get("HOST") or "localhost"

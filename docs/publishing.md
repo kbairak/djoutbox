@@ -50,13 +50,29 @@ class OutboxMessage:
 
 ## Serialization
 
-The body is serialized as follows:
+The body is serialized as follows, in order:
 
-- **Pydantic `BaseModel`** — serialized via `model_dump_json().encode()` (requires `djoutbox[pydantic]`)
-- **`bytes`** — used as-is
-- **Anything else** — serialized via `json.dumps().encode()`
+1. **Custom serializers** — if `DJOUTBOX["serializers"]` is configured, the first tuple whose `type` matches `isinstance(body, type)` is used.
+2. **`bytes`** — used as-is.
+3. **Anything else** — serialized via `json.dumps().encode()`.
 
 Unserializable values raise `ValueError` with the routing key in the message.
+
+Example — register Pydantic:
+
+```python
+# settings.py
+from pydantic import BaseModel
+
+DJOUTBOX = {
+    ...,
+    "serializers": [(
+        BaseModel,
+        lambda m: m.model_dump_json().encode(),
+        lambda cls, d: cls.model_validate_json(d),
+    )],
+}
+```
 
 ## Delayed execution (`eta`)
 
