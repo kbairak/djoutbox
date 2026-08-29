@@ -1,0 +1,46 @@
+name: Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.9"
+            django-version: "3.2"
+            label: "py3.9-django3.2"
+          - python-version: "3.9"
+            django-version: ""
+            label: "py3.9-djangolatest"
+          - python-version: "3.11"
+            django-version: "4.2"
+            label: "py3.11-django4.2"
+          - python-version: "3.13"
+            django-version: "6.0"
+            label: "py3.13-django6.0"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install uv
+        run: pip install uv
+      - name: Sync dependencies
+        run: uv sync --group dev
+      - name: Pin Django version (if specified)
+        if: matrix.django-version != ''
+        run: uv pip install 'django==${{ matrix.django-version }}'
+      - name: Run tests
+        run: uv run pytest --cov --cov-report=term-missing -v
+      - name: Run lints
+        run: |
+          uv run ruff check src/
+          uv run ruff format --check src/
+          uv run mypy src/djoutbox/ --no-incremental

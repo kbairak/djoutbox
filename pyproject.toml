@@ -4,9 +4,9 @@ version = "0.1.0"
 description = "Transactional outbox pattern for Django + PostgreSQL + RabbitMQ"
 readme = "DESIGN.md"
 authors = [{ name = "Konstantinos Bairaktaris", email = "ikijob@gmail.com" }]
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 dependencies = [
-  "django>=4.2",
+  "django>=3.2",
   "aio-pika>=9.5,<10",
   "asyncpg>=0.30",
   "prometheus-client>=0.8,<1",
@@ -41,6 +41,20 @@ select = [
 [tool.mypy]
 python_version = "3.10"
 strict = true
+python_executable = ".venv/bin/python"
+
+[[tool.mypy.overrides]]
+module = "asyncpg"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "djoutbox.models"
+disable_error_code = ["var-annotated"]
+
+[[tool.mypy.overrides]]
+module = "djoutbox.admin"
+disallow_any_generics = false
+disable_error_code = ["no-any-return"]
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "session"
@@ -56,10 +70,11 @@ dev = [
     "pydantic>=2,<3",
     "mkdocs>=1.6",
     "mkdocs-material>=9.5",
-    "pytest>=9.1.1",
+    "pytest>=7,<9",
     "pytest-cov>=7.1.0",
-    "pytest-django>=4.14.0",
-    "pytest-asyncio>=1.4.0",
-    "testcontainers>=4.15.0",
+    "pytest-django>=4.5,<5",
+    "pytest-asyncio>=0.21,<2",
+    "testcontainers>=3.7,<5",
     "pika>=1.3",
+    "django-stubs>=5.1.3",
 ]

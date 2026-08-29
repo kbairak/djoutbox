@@ -16,7 +16,7 @@ __all__ = [
 ]
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> object:
     if name in ("publish", "bulk_publish", "OutboxMessage"):
         from djoutbox import publisher
 

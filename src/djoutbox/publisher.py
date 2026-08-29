@@ -4,7 +4,7 @@ import json
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from aio_pika.abc import DateType
@@ -23,7 +23,9 @@ class OutboxMessage:
     eta: DateType | None = None
 
 
-def _serialize_message(msg: OutboxMessage, now, tracking_ids) -> PendingMessage:
+def _serialize_message(
+    msg: OutboxMessage, now: datetime, tracking_ids: tuple[str, ...]
+) -> PendingMessage:
     try:
         from django.conf import settings
 
@@ -66,7 +68,9 @@ def _serialize_message(msg: OutboxMessage, now, tracking_ids) -> PendingMessage:
     )
 
 
-def publish(routing_key: str, body: Any, *, expiration=None, eta=None) -> None:
+def publish(
+    routing_key: str, body: Any, *, expiration: DateType | None = None, eta: DateType | None = None
+) -> None:
     bulk_publish([OutboxMessage(routing_key, body, expiration, eta)])
 
 

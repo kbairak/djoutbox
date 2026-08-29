@@ -61,7 +61,8 @@ class Consumer:
             ) -> None:
                 return await asyncio.to_thread(_sync_callback, *args, **kwargs)
 
-            async_wrapper.__signature__ = inspect.signature(sync_callback)
+            _wrapper: Any = async_wrapper
+            _wrapper.__signature__ = inspect.signature(sync_callback)
 
             self.callback = async_wrapper
 

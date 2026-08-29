@@ -5,7 +5,7 @@ class DjoutboxConfig(AppConfig):
     name = "djoutbox"
     verbose_name = "Djoutbox"
 
-    def ready(self):
+    def ready(self) -> None:
         from djoutbox.conf import validate_settings
 
         validate_settings()

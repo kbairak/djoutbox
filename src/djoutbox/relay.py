@@ -7,11 +7,15 @@ import json
 import logging
 import signal
 import time
-from typing import cast
+from typing import Any, cast
 
 import aio_pika
 import asyncpg
-from aio_pika.abc import DateType, HeadersType
+from aio_pika.abc import (
+    AbstractExchange,
+    DateType,
+    HeadersType,
+)
 
 from djoutbox import metrics
 from djoutbox.log import logger
@@ -88,10 +92,14 @@ class Relay:
                 with contextlib.suppress(asyncio.CancelledError):
                     await partition_task
 
-    async def _main_loop(self, exchange, notification_event):
+    async def _main_loop(
+        self, exchange: AbstractExchange, notification_event: asyncio.Event
+    ) -> None:
+        pool = self._pool
+        assert pool is not None
         while not self._shutdown_event.is_set():
             try:
-                async with self._pool.acquire() as conn:
+                async with pool.acquire() as conn:
                     backlog = await conn.fetchval(
                         "SELECT COUNT(*) FROM djoutbox_pending WHERE send_after <= $1",
                         datetime.datetime.now(datetime.timezone.utc),
@@ -105,7 +113,7 @@ class Relay:
 
                 await self._drain_batches(exchange)
 
-                async with self._pool.acquire() as conn:
+                async with pool.acquire() as conn:
                     next_send = await conn.fetchval(
                         "SELECT MIN(send_after) FROM djoutbox_pending WHERE send_after > $1",
                         datetime.datetime.now(datetime.timezone.utc),
@@ -144,14 +152,18 @@ class Relay:
                 )
                 await asyncio.sleep(RETRY_DELAY_SECONDS)
 
-    async def _drain_batches(self, exchange):
+    async def _drain_batches(self, exchange: AbstractExchange) -> None:
+        pool = self._pool
+        assert pool is not None
         while True:
-            async with self._pool.acquire() as conn, conn.transaction():
+            async with pool.acquire() as conn, conn.transaction():
                 count = await self._consume_batch(exchange, conn)
                 if count == 0:
                     break
 
-    async def _consume_batch(self, exchange, conn):
+    async def _consume_batch(
+        self, exchange: AbstractExchange, conn: asyncpg.Connection[Any]
+    ) -> int:
         poll_start = time.perf_counter()
         rows = await conn.fetch(
             """SELECT id, routing_key, body, tracking_ids, created_at, expiration
@@ -242,10 +254,12 @@ FROM moved""",
 
         return len(rows)
 
-    async def _partition_admin_loop(self):
+    async def _partition_admin_loop(self) -> None:
+        pool = self._pool
+        assert pool is not None
         while not self._shutdown_event.is_set():
             try:
-                async with self._pool.acquire() as conn:
+                async with pool.acquire() as conn:
                     await ensure_partitions(conn, self.sent_archive_granularity)
             except Exception as exc:
                 logger.error("Partition admin error: %s", exc, exc_info=True)
